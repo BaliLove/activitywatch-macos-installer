@@ -1,0 +1,26 @@
+# macOS Installer Development
+*.pyc
+__pycache__/
+.DS_Store
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/
+*.app
+*.dmg
+*.pkg
+*.spec
+
+# Development files
+.env
+*.log
+temp/
+test_output/
+
+# macOS specific
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

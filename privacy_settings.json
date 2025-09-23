@@ -1,0 +1,24 @@
+{
+  "sensitive_keywords": [
+    "password", "login", "banking", "private", "secret", "ssn",
+    "credit card", "payment", "personal", "confidential"
+  ],
+  "excluded_applications": [
+    "1Password", "KeePass", "Keychain Access", "LastPass",
+    "Bitwarden", "Dashlane", "Banking", "Wallet"
+  ],
+  "url_filters": [
+    "login", "auth", "password", "bank", "payment", "secure"
+  ],
+  "encryption_enabled": true,
+  "work_hours": {
+    "enabled": false,
+    "start_time": "09:00",
+    "end_time": "18:00",
+    "timezone": "local"
+  },
+  "browser_privacy": {
+    "filter_incognito": true,
+    "filter_private_browsing": true
+  }
+}

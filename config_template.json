@@ -1,0 +1,23 @@
+{
+  "sync_server_url": "https://activitywatch-sync-server-1051608384208.us-central1.run.app",
+  "api_key": "aw-team-2025-secure-key-v1",
+  "sync_interval_minutes": 10,
+  "user_info": {
+    "email": "PROMPT_DURING_INSTALL",
+    "full_name": "PROMPT_DURING_INSTALL",
+    "team": "Engineering",
+    "department": "Development"
+  },
+  "privacy": {
+    "encrypt_window_titles": true,
+    "exclude_keywords": ["password", "private", "secret", "login", "banking"],
+    "work_hours_only": false,
+    "work_hours": {"start": "09:00", "end": "18:00"},
+    "excluded_apps": ["1Password", "KeePass", "Keychain Access"]
+  },
+  "sync_settings": {
+    "batch_size": 100,
+    "retry_attempts": 3,
+    "timeout_seconds": 30
+  }
+}

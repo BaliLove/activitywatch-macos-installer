@@ -1,0 +1,66 @@
+{
+  "description": "REAL successful sync from working Windows installer",
+  "user_email": "aldo@bali.love",
+  "events": [
+    {
+      "event_id": "aldo@bali.love_0_1727075160",
+      "timestamp": "2025-09-23T06:45:00.000000+00:00",
+      "duration": 300.0,
+      "application": "Code.exe",
+      "window_title": "Testing metadata fix - Visual Studio Code",
+      "category": "Development",
+      "is_productive": true,
+      "hostname": "Aldo",
+      "user_id": "aldo@bali.love",
+      "server_timestamp": "2025-09-23T06:42:38.827065",
+      "server_received_at": "2025-09-23T06:42:38.827065",
+      "created_at": "2025-09-23T06:42:38.827065",
+      "is_sensitive": false,
+      "metadata": {
+        "bucket": "aw-watcher-window_Aldo",
+        "original_id": "test_123",
+        "afk_status": "not-afk",
+        "url": "",
+        "tab_count": 0,
+        "audible": false,
+        "incognito": false,
+        "raw": ""
+      }
+    }
+  ],
+  "api_response": {
+    "status": "success",
+    "events_processed": 1,
+    "events_received": 1,
+    "timestamp": "2025-09-23T06:42:38.958440",
+    "user_email": "aldo@bali.love"
+  },
+  "bigquery_verification": {
+    "table": "bali-love-data.activitywatch_pilot.events",
+    "inserted_successfully": true,
+    "query_result": {
+      "event_id": "aldo@bali.love_0_1727075160",
+      "user_id": "aldo@bali.love",
+      "application": "Code.exe",
+      "metadata": {
+        "bucket": "aw-watcher-window_Aldo",
+        "original_id": "test_123",
+        "afk_status": "not-afk",
+        "url": "",
+        "tab_count": "0",
+        "audible": "false",
+        "incognito": "false",
+        "raw": ""
+      }
+    }
+  },
+  "curl_test_command": "curl -X POST https://activitywatch-sync-server-1051608384208.us-central1.run.app/api/sync -H \"Content-Type: application/json\" -H \"X-API-Key: aw-team-2025-secure-key-v1\" -d @successful_sync_example.json",
+  "notes": [
+    "This exact payload was successfully processed by our production server",
+    "metadata uses STRUCT format (not JSON string)",
+    "All timestamps are in ISO format with timezone",
+    "server_* fields are added automatically by the server",
+    "category and is_productive are categorized by server logic",
+    "Privacy filtering (is_sensitive) applied server-side"
+  ]
+}

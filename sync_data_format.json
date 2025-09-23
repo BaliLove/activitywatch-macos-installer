@@ -1,0 +1,24 @@
+{
+  "user_email": "user@bali.love",
+  "events": [
+    {
+      "event_id": "unique_event_id_123",
+      "timestamp": "2025-09-23T06:00:00.000000+00:00",
+      "duration": 300.0,
+      "application": "Safari",
+      "window_title": "Document Title - Safari",
+      "category": "Browser",
+      "is_productive": true,
+      "hostname": "MacBook-Pro",
+      "metadata": {
+        "bucket": "aw-watcher-window_MacBook-Pro",
+        "original_id": "original_aw_event_id",
+        "afk_status": "not-afk",
+        "url": "https://docs.google.com/document",
+        "tab_count": 3,
+        "audible": false,
+        "incognito": false
+      }
+    }
+  ]
+}
