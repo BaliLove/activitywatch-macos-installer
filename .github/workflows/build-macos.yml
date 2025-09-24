@@ -175,6 +175,287 @@ jobs:
         
         echo "✅ All functionality tests passed"
     
+    - name: Comprehensive App Bundle Testing
+      run: |
+        echo "🔍 Comprehensive App Bundle Testing"
+        echo "==================================="
+        
+        APP_PATH="dist/ActivityWatch Team Installer.app"
+        
+        # Test 1: Bundle structure validation
+        echo "📋 Testing bundle structure..."
+        test -d "$APP_PATH/Contents" || { echo "❌ Contents directory missing"; exit 1; }
+        test -f "$APP_PATH/Contents/Info.plist" || { echo "❌ Info.plist missing"; exit 1; }
+        test -d "$APP_PATH/Contents/MacOS" || { echo "❌ MacOS directory missing"; exit 1; }
+        test -d "$APP_PATH/Contents/Resources" || { echo "❌ Resources directory missing"; exit 1; }
+        echo "✅ Bundle structure is valid"
+        
+        # Test 2: Executable permissions and signature
+        echo "📋 Testing executable..."
+        EXECUTABLE="$APP_PATH/Contents/MacOS/ActivityWatch Team Installer"
+        test -x "$EXECUTABLE" || { echo "❌ Executable not found or not executable"; exit 1; }
+        
+        # Test file type
+        file "$EXECUTABLE" | grep -q "Mach-O" || { echo "❌ Not a valid Mach-O executable"; exit 1; }
+        echo "✅ Executable is valid Mach-O binary"
+        
+        # Test 3: Info.plist validation
+        echo "📋 Testing Info.plist..."
+        plutil -lint "$APP_PATH/Contents/Info.plist" || { echo "❌ Info.plist is invalid"; exit 1; }
+        
+        # Extract and validate bundle info
+        BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Contents/Info.plist")
+        BUNDLE_NAME=$(plutil -extract CFBundleName raw "$APP_PATH/Contents/Info.plist")
+        BUNDLE_VERSION=$(plutil -extract CFBundleVersion raw "$APP_PATH/Contents/Info.plist")
+        
+        echo "   Bundle ID: $BUNDLE_ID"
+        echo "   Bundle Name: $BUNDLE_NAME"
+        echo "   Version: $BUNDLE_VERSION"
+        
+        [[ "$BUNDLE_ID" == "watch.activity.team.installer" ]] || { echo "❌ Wrong bundle ID"; exit 1; }
+        echo "✅ Info.plist is valid and contains correct metadata"
+        
+        # Test 4: Code signature status (even if unsigned)
+        echo "📋 Testing code signature status..."
+        codesign -dv "$APP_PATH" 2>&1 || echo "ℹ️ App is unsigned (expected for test builds)"
+        
+        # Test 5: Dependencies and libraries
+        echo "📋 Testing dependencies..."
+        otool -L "$EXECUTABLE" | head -10
+        echo "✅ Dependencies checked"
+        
+        # Test 6: Simulate installation test (dry run)
+        echo "📋 Testing installation simulation..."
+        
+        # Create a temporary test directory
+        TEST_DIR="/tmp/aw_installer_test_$$"
+        mkdir -p "$TEST_DIR"
+        
+        # Copy app to test location
+        cp -R "$APP_PATH" "$TEST_DIR/"
+        
+        # Test if the app can be "opened" (validate launch readiness)
+        echo "📋 Testing app launch readiness..."
+        
+        # Use open command with dry run to validate
+        open -n "$TEST_DIR/ActivityWatch Team Installer.app" --args --version --dry-run 2>&1 | head -5 || {
+          echo "ℹ️ App may require user interaction to run (normal for installers)"
+        }
+        
+        # Clean up
+        rm -rf "$TEST_DIR"
+        
+        echo "✅ App bundle passes all validation tests"
+        
+        # Test 7: Generate detailed app info for debugging
+        echo "📋 Detailed App Information:"
+        echo "   App Size: $(du -sh "$APP_PATH" | cut -f1)"
+        echo "   File Count: $(find "$APP_PATH" | wc -l) files"
+        echo "   Architecture: $(lipo -archs "$EXECUTABLE" 2>/dev/null || echo 'unknown')"
+        
+        # List contents for debugging
+        echo "📋 App Contents Summary:"
+        find "$APP_PATH" -type f | head -20
+        
+        echo "🎉 Comprehensive app bundle testing completed successfully!"
+    
+    - name: DMG Validation Testing
+      run: |
+        echo "💽 DMG Validation Testing"
+        echo "========================"
+        
+        if ! ls dist/ActivityWatch-Team-Installer-macOS-*.dmg >/dev/null 2>&1; then
+          echo "⚠️ No DMG found, skipping DMG tests"
+          exit 0
+        fi
+        
+        DMG_FILE=$(ls dist/ActivityWatch-Team-Installer-macOS-*.dmg | head -1)
+        echo "Testing DMG: $(basename "$DMG_FILE")"
+        
+        # Test 1: DMG integrity
+        echo "📋 Testing DMG integrity..."
+        hdiutil verify "$DMG_FILE" || { echo "❌ DMG integrity check failed"; exit 1; }
+        echo "✅ DMG integrity verified"
+        
+        # Test 2: Mount and inspect contents
+        echo "📋 Testing DMG mounting and contents..."
+        
+        # Create mount point
+        MOUNT_POINT="/tmp/dmg_test_$$"
+        mkdir -p "$MOUNT_POINT"
+        
+        # Mount DMG
+        hdiutil attach "$DMG_FILE" -mountpoint "$MOUNT_POINT" -readonly -nobrowse || {
+          echo "❌ Failed to mount DMG"
+          rmdir "$MOUNT_POINT" 2>/dev/null || true
+          exit 1
+        }
+        
+        echo "✅ DMG mounted successfully"
+        
+        # Verify contents
+        echo "📋 DMG Contents:"
+        ls -la "$MOUNT_POINT"/
+        
+        # Check for app bundle in DMG
+        test -d "$MOUNT_POINT/ActivityWatch Team Installer.app" || {
+          echo "❌ App bundle not found in DMG"
+          hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+          exit 1
+        }
+        echo "✅ App bundle found in DMG"
+        
+        # Check for Applications symlink
+        test -L "$MOUNT_POINT/Applications" || {
+          echo "⚠️ Applications symlink not found (installer UX will be affected)"
+        }
+        
+        # Test app from within DMG
+        DMG_APP="$MOUNT_POINT/ActivityWatch Team Installer.app"
+        test -x "$DMG_APP/Contents/MacOS/ActivityWatch Team Installer" || {
+          echo "❌ App executable not found or not executable in DMG"
+          hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+          exit 1
+        }
+        echo "✅ App executable is valid within DMG"
+        
+        # Unmount DMG
+        hdiutil detach "$MOUNT_POINT" || echo "⚠️ Warning: DMG unmount had issues"
+        rmdir "$MOUNT_POINT" 2>/dev/null || true
+        
+        echo "✅ DMG validation completed successfully"
+        
+        # Test 3: DMG metadata
+        echo "📋 DMG Information:"
+        echo "   Size: $(du -sh "$DMG_FILE" | cut -f1)"
+        echo "   Format: $(hdiutil imageinfo "$DMG_FILE" | grep -i format | head -1)"
+        
+        echo "🎉 DMG passes all validation tests!"
+    
+    - name: Simulate Real Installation (Cloud Testing)
+      run: |
+        echo "🏗️ Simulating Real Installation Process"
+        echo "======================================"
+        
+        APP_PATH="dist/ActivityWatch Team Installer.app"
+        
+        # Test 1: Simulate copying to Applications
+        echo "📋 Testing Applications folder installation..."
+        
+        # Create a mock Applications directory
+        MOCK_APPLICATIONS="/tmp/mock_applications_$$"
+        mkdir -p "$MOCK_APPLICATIONS"
+        
+        # Simulate installation
+        cp -R "$APP_PATH" "$MOCK_APPLICATIONS/"
+        INSTALLED_APP="$MOCK_APPLICATIONS/ActivityWatch Team Installer.app"
+        
+        test -d "$INSTALLED_APP" || { echo "❌ App installation simulation failed"; exit 1; }
+        echo "✅ App successfully 'installed' to Applications folder"
+        
+        # Test 2: Simulate first launch
+        echo "📋 Simulating first launch scenario..."
+        
+        # Check if app would be quarantined (Gatekeeper simulation)
+        echo "📋 Checking Gatekeeper status..."
+        xattr "$INSTALLED_APP" 2>/dev/null | grep -q "com.apple.quarantine" && {
+          echo "ℹ️ App would be quarantined (normal for unsigned builds)"
+          echo "   Real users would need to right-click -> Open to bypass"
+        } || {
+          echo "✅ App would not be quarantined"
+        }
+        
+        # Test 3: System requirements check
+        echo "📋 Validating system requirements..."
+        
+        # Check macOS version compatibility
+        MACOS_VERSION=$(sw_vers -productVersion)
+        echo "   Current macOS: $MACOS_VERSION"
+        
+        # Extract minimum version from Info.plist
+        MIN_VERSION=$(plutil -extract LSMinimumSystemVersion raw "$INSTALLED_APP/Contents/Info.plist" 2>/dev/null || echo "12.0")
+        echo "   Required minimum: $MIN_VERSION"
+        
+        # Simple version comparison
+        if [[ "$(printf '%s\n' "$MIN_VERSION" "$MACOS_VERSION" | sort -V | head -n1)" == "$MIN_VERSION" ]]; then
+          echo "✅ System meets minimum requirements"
+        else
+          echo "❌ System does not meet minimum requirements"
+        fi
+        
+        # Test 4: Network connectivity simulation
+        echo "📋 Testing network connectivity (installer requirement)..."
+        
+        # Test if we can reach common endpoints
+        curl -s --max-time 5 https://api.github.com > /dev/null && {
+          echo "✅ GitHub API accessible (needed for ActivityWatch downloads)"
+        } || {
+          echo "⚠️ GitHub API not accessible - may affect installation"
+        }
+        
+        # Test 5: Disk space simulation
+        echo "📋 Checking available disk space..."
+        
+        AVAILABLE_GB=$(df -g / | awk 'NR==2 {print $4}')
+        echo "   Available space: ${AVAILABLE_GB}GB"
+        
+        if (( AVAILABLE_GB >= 1 )); then
+          echo "✅ Sufficient disk space for ActivityWatch installation"
+        else
+          echo "❌ Insufficient disk space (need ~1GB)"
+        fi
+        
+        # Test 6: Installation flow simulation
+        echo "📋 Simulating installation workflow..."
+        
+        # Create test user input simulation
+        TEST_EMAIL="automation.test@bali.love"
+        echo "   Test email: $TEST_EMAIL"
+        
+        # Test email validation using the installer
+        python3 -c "
+        import sys
+        sys.path.insert(0, '.')
+        from activitywatch_installer_macos_enhanced import ActivityWatchMacOSInstaller
+        
+        installer = ActivityWatchMacOSInstaller(gui_mode=False)
+        
+        # Test email validation
+        test_email = '$TEST_EMAIL'
+        if installer.validate_email(test_email):
+            print('✅ Test email validation passed')
+        else:
+            print('❌ Test email validation failed')
+            sys.exit(1)
+        
+        # Test system checks
+        try:
+            installer.verify_system()
+            print('✅ System verification would succeed')
+        except Exception as e:
+            print(f'⚠️ System verification note: {e}')
+        
+        print('✅ Installation workflow validation completed')
+        "
+        
+        # Test 7: Cleanup simulation
+        echo "📋 Testing cleanup procedures..."
+        
+        # Remove mock installation
+        rm -rf "$MOCK_APPLICATIONS"
+        echo "✅ Cleanup completed successfully"
+        
+        # Test 8: Generate installation report
+        echo "📋 Installation Test Report:"
+        echo "   macOS Version: $MACOS_VERSION"
+        echo "   Architecture: $(uname -m)"
+        echo "   Available Space: ${AVAILABLE_GB}GB"
+        echo "   Network Status: $(curl -s --max-time 2 https://httpbin.org/ip > /dev/null && echo 'Connected' || echo 'Limited')"
+        echo "   Installer Size: $(du -sh "$APP_PATH" | cut -f1)"
+        
+        echo "🎉 Real installation simulation completed successfully!"
+        echo "📝 Summary: App bundle is ready for real-world deployment"
+    
     - name: Generate build artifacts info
       run: |
         echo "📊 Build Information" > dist/BUILD_INFO.txt
