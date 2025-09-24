@@ -288,7 +288,11 @@ fi
 # Create DMG installer
 print_status "Creating DMG installer..."
 
-# Create temporary DMG directory
+# Set fallback flag
+CREATE_DMG=${CREATE_DMG:-true}
+
+if [[ "$CREATE_DMG" == "true" ]]; then
+    # Create temporary DMG directory
 DMG_TEMP_DIR="${BUILD_DIR}/dmg_temp"
 mkdir -p "${DMG_TEMP_DIR}"
 
@@ -318,26 +322,47 @@ DMG_SIZE=$((DMG_SIZE + 50))  # Add 50MB buffer
 print_status "Creating DMG (${DMG_SIZE}MB)..."
 
 # Create writable DMG
-hdiutil create \
+print_status "Creating temporary DMG with hdiutil..."
+if hdiutil create \
     -srcfolder "${DMG_TEMP_DIR}" \
     -volname "${APP_NAME}" \
     -fs HFS+ \
     -fsargs "-c c=64,a=16,e=16" \
     -format UDRW \
     -size "${DMG_SIZE}m" \
-    "${BUILD_DIR}/temp.dmg"
-
-# Mount the DMG
-MOUNT_POINT=$(hdiutil attach "${BUILD_DIR}/temp.dmg" -readwrite -noverify -noautoopen | grep -E '^/dev/' | sed 1q | awk '{print $3}')
-
-if [[ -z "$MOUNT_POINT" ]]; then
-    print_error "Failed to mount temp DMG"
-    exit 1
+    "${BUILD_DIR}/temp.dmg"; then
+    print_status "Temporary DMG created successfully"
+else
+    print_error "Failed to create temporary DMG"
+    print_warning "Continuing without DMG creation..."
+    CREATE_DMG=false
 fi
 
-print_status "DMG mounted at: $MOUNT_POINT"
+# Mount the DMG with better error handling
+print_status "Mounting temporary DMG..."
+MOUNT_OUTPUT=$(hdiutil attach "${BUILD_DIR}/temp.dmg" -readwrite -noverify -noautoopen 2>&1)
+MOUNT_EXIT_CODE=$?
 
-# Set DMG window properties (if AppleScript is available)
+if [[ $MOUNT_EXIT_CODE -eq 0 ]]; then
+    MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep -E '^/dev/' | sed 1q | awk '{print $3}')
+    if [[ -n "$MOUNT_POINT" ]]; then
+        print_status "DMG mounted successfully at: $MOUNT_POINT"
+    else
+        print_error "Could not determine mount point from hdiutil output:"
+        echo "$MOUNT_OUTPUT"
+        exit 1
+    fi
+else
+    print_error "Failed to mount temp DMG (exit code: $MOUNT_EXIT_CODE)"
+    print_error "hdiutil output:"
+    echo "$MOUNT_OUTPUT"
+    print_warning "Continuing without DMG creation..."
+    CREATE_DMG=false
+fi
+
+# Only continue with DMG operations if mounting was successful
+if [[ "$CREATE_DMG" == "true" ]]; then
+    # Set DMG window properties (if AppleScript is available)
 if command -v osascript &> /dev/null; then
     print_status "Configuring DMG appearance..."
     
@@ -376,21 +401,25 @@ hdiutil convert "${BUILD_DIR}/temp.dmg" \
     -imagekey zlib-level=9 \
     -o "${DIST_DIR}/${DMG_NAME}"
 
-# Clean up
-rm -f "${BUILD_DIR}/temp.dmg"
-rm -rf "${DMG_TEMP_DIR}"
+    # Clean up
+    rm -f "${BUILD_DIR}/temp.dmg"
+    rm -rf "${DMG_TEMP_DIR}"
+fi  # End of DMG operations conditional block
 
-# Verify the final DMG
-if [[ -f "${DIST_DIR}/${DMG_NAME}" ]]; then
-    DMG_FILE_SIZE=$(du -h "${DIST_DIR}/${DMG_NAME}" | cut -f1)
-    print_status "DMG created successfully: ${DMG_NAME} (${DMG_FILE_SIZE})"
-    
-    # Optional: Verify DMG integrity
-    print_status "Verifying DMG integrity..."
-    hdiutil verify "${DIST_DIR}/${DMG_NAME}" && print_status "DMG verification passed" || print_warning "DMG verification failed"
+    # Verify the final DMG
+    if [[ -f "${DIST_DIR}/${DMG_NAME}" ]]; then
+        DMG_FILE_SIZE=$(du -h "${DIST_DIR}/${DMG_NAME}" | cut -f1)
+        print_status "DMG created successfully: ${DMG_NAME} (${DMG_FILE_SIZE})"
+        
+        # Optional: Verify DMG integrity
+        print_status "Verifying DMG integrity..."
+        hdiutil verify "${DIST_DIR}/${DMG_NAME}" && print_status "DMG verification passed" || print_warning "DMG verification failed"
+    else
+        print_error "Failed to create DMG"
+        exit 1
+    fi
 else
-    print_error "Failed to create DMG"
-    exit 1
+    print_warning "DMG creation skipped or disabled"
 fi
 
 # Create entitlements file for future code signing
@@ -415,7 +444,11 @@ echo -e "${GREEN}✅ Build completed successfully!${NC}"
 echo
 echo "📦 Generated files:"
 echo "   • App Bundle: ${APP_DIR}"
-echo "   • DMG Installer: ${DIST_DIR}/${DMG_NAME}"
+if [[ -f "${DIST_DIR}/${DMG_NAME}" ]]; then
+    echo "   • DMG Installer: ${DIST_DIR}/${DMG_NAME}"
+else
+    echo "   • DMG Installer: [not created]"
+fi
 echo "   • Entitlements: ${DIST_DIR}/entitlements.plist"
 echo
 echo "📋 Next steps:"
