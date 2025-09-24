@@ -1,0 +1,3 @@
+requests>=2.31.0
+certifi>=2023.7.22
+PyInstaller>=6.0.0
