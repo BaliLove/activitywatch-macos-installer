@@ -98,19 +98,70 @@ if [[ ! -f "$ICON_PATH" ]]; then
     print_warning "No app icon found, creating placeholder..."
     # Create a simple icon using system tools
     mkdir -p "${BUILD_DIR}/icon.iconset"
+    
     # Use system icon as base (ActivityWatch-like)
-    sips -z 16 16 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_16x16.png" 2>/dev/null || true
-    sips -z 32 32 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_32x32.png" 2>/dev/null || true
-    sips -z 128 128 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_128x128.png" 2>/dev/null || true
-    sips -z 256 256 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_256x256.png" 2>/dev/null || true
-    sips -z 512 512 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_512x512.png" 2>/dev/null || true
-    iconutil -c icns "${BUILD_DIR}/icon.iconset" -o "$ICON_PATH" 2>/dev/null || true
+    print_status "Creating icon placeholder using system clock icon..."
+    
+    # Create PNG files with better error handling
+    if sips -z 16 16 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_16x16.png" 2>/dev/null; then
+        print_status "Created 16x16 icon"
+    else
+        print_warning "Failed to create 16x16 icon"
+    fi
+    
+    if sips -z 32 32 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_32x32.png" 2>/dev/null; then
+        print_status "Created 32x32 icon"
+    else
+        print_warning "Failed to create 32x32 icon"
+    fi
+    
+    if sips -z 128 128 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_128x128.png" 2>/dev/null; then
+        print_status "Created 128x128 icon"
+    else
+        print_warning "Failed to create 128x128 icon"
+    fi
+    
+    if sips -z 256 256 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_256x256.png" 2>/dev/null; then
+        print_status "Created 256x256 icon"
+    else
+        print_warning "Failed to create 256x256 icon"
+    fi
+    
+    if sips -z 512 512 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns --out "${BUILD_DIR}/icon.iconset/icon_512x512.png" 2>/dev/null; then
+        print_status "Created 512x512 icon"
+    else
+        print_warning "Failed to create 512x512 icon"
+    fi
+    
+    # Try to create icns file with better error handling
+    print_status "Converting PNG files to ICNS format..."
+    if iconutil -c icns "${BUILD_DIR}/icon.iconset" -o "$ICON_PATH"; then
+        print_status "Successfully created app_icon.icns"
+    else
+        print_warning "iconutil failed, trying alternative approach..."
+        # Fallback: copy system icon directly
+        if cp /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/Clock.icns "$ICON_PATH" 2>/dev/null; then
+            print_status "Using system Clock icon as fallback"
+        else
+            print_warning "Could not create icon, proceeding without it"
+            ICON_PATH=""
+        fi
+    fi
 fi
 
 # Build with PyInstaller
 print_status "Building application with PyInstaller..."
 
-# Create PyInstaller spec file
+# Create PyInstaller spec file with conditional icon handling
+print_status "Generating PyInstaller spec file..."
+if [[ -n "$ICON_PATH" && -f "$ICON_PATH" ]]; then
+    print_status "Using icon: $ICON_PATH"
+    ICON_LINE="icon='${ICON_PATH}',"
+else
+    print_warning "No icon available, building without icon"
+    ICON_LINE=""
+fi
+
 cat > "${BUILD_DIR}/installer.spec" << EOF
 # -*- mode: python ; coding: utf-8 -*-
 import sys
@@ -172,7 +223,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='${APP_NAME}.app',
-    icon='${ICON_PATH}',
+    ${ICON_LINE}
     bundle_identifier='${BUNDLE_ID}',
     version='${VERSION}',
     info_plist={
