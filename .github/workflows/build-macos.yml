@@ -71,7 +71,7 @@ jobs:
         echo "✅ App bundle structure is valid"
         
     - name: Import certificates (if signing)
-      if: ${{ github.event.inputs.sign_and_notarize == 'true' && secrets.APPLE_CERTIFICATE_P12 }}
+      if: ${{ github.event.inputs.sign_and_notarize == 'true' }}
       run: |
         # Create temporary keychain
         security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
@@ -90,7 +90,7 @@ jobs:
         P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
     
     - name: Sign and notarize (if enabled)
-      if: ${{ github.event.inputs.sign_and_notarize == 'true' && secrets.APPLE_CERTIFICATE_P12 }}
+      if: ${{ github.event.inputs.sign_and_notarize == 'true' }}
       run: |
         echo "🔐 Code signing and notarizing..."
         
