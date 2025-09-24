@@ -198,7 +198,7 @@ jobs:
         echo "" >> dist/BUILD_INFO.txt
         echo "File Checksums:" >> dist/BUILD_INFO.txt
         echo "===============" >> dist/BUILD_INFO.txt
-        (cd dist && find . -name "*.app" -o -name "*.dmg" | xargs shasum -a 256) >> dist/BUILD_INFO.txt
+        (cd dist && find . -name "*.app" -o -name "*.dmg" -print0 | xargs -0 shasum -a 256) >> dist/BUILD_INFO.txt
         
         cat dist/BUILD_INFO.txt
     
