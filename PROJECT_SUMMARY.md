@@ -1,8 +1,13 @@
 # ActivityWatch macOS Installer - Project Complete! 🎉
 
+> **📍 Repository Location Update (September 2025)**  
+> This project has been successfully transferred from `tomhay/activitywatch-macos-installer` to `BaliLove/activitywatch-macos-installer` to enable team collaboration within the BaliLove organization.
+>
+> **New Repository URL:** https://github.com/BaliLove/activitywatch-macos-installer
+
 ## What We've Built
 
-You now have a **complete, production-ready macOS installer development system** that you can build and deploy from your Windows machine using cloud macOS services.
+You now have a **complete, production-ready macOS installer development system** that you can build and deploy from your Windows machine using cloud macOS services, now hosted under the BaliLove organization for enhanced team collaboration.
 
 ## 📦 Deliverables Created
 
@@ -202,6 +207,34 @@ Your PC                                   Cloud macOS         Download & Share
 - **Professional appearance** and reliability
 - **Future-ready** architecture for updates
 
+## 🏢 Repository Transfer & Team Collaboration
+
+### Transfer Summary (September 2025)
+**Successfully transferred from:** `tomhay/activitywatch-macos-installer`  
+**New location:** `BaliLove/activitywatch-macos-installer`  
+
+### What's Preserved
+- ✅ **Complete commit history** - All development history maintained
+- ✅ **GitHub Actions workflows** - CI/CD pipeline fully functional
+- ✅ **Documentation and guides** - All files transferred intact
+- ✅ **Project structure** - No changes to codebase or organization
+
+### Benefits of BaliLove Organization
+- ✅ **Team access control** - Multiple collaborators can contribute
+- ✅ **Shared secrets management** - Organization-level Apple Developer certificates
+- ✅ **Centralized project management** - All BaliLove projects in one place
+- ✅ **Professional presentation** - Official organization branding
+
+### Next Steps for Team Members
+1. **Repository access**: Team members should be added as collaborators
+2. **Local repositories**: Update existing clones with:
+   ```bash
+   git remote set-url origin https://github.com/BaliLove/activitywatch-macos-installer.git
+   git fetch --prune
+   ```
+3. **Documentation links**: All URLs automatically redirect to new location
+4. **CI/CD**: Workflows continue to function without interruption
+
 ## 🏁 You're Done! 
 
 You now have everything needed to:
@@ -209,14 +242,17 @@ You now have everything needed to:
 - ✅ **Distribute to Mac users** professionally  
 - ✅ **Maintain and update** easily
 - ✅ **Scale to more users** as needed
+- ✅ **Collaborate as a team** within BaliLove organization
 
 **The fastest path to success:**
 1. Follow **QUICK_START.md** (30 minutes)
 2. Test with your team (30 minutes)
 3. Start using in production
+4. Add team collaborators for ongoing development
 
 You've successfully solved the macOS app deployment challenge! 🎉
 
 ---
 
-*Total project value: Enterprise-grade macOS deployment capability for ~6 hours of development time*
+*Total project value: Enterprise-grade macOS deployment capability for ~6 hours of development time*  
+*Now enhanced with professional team collaboration via BaliLove organization*
