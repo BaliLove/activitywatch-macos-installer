@@ -344,13 +344,15 @@ MOUNT_OUTPUT=$(hdiutil attach "${BUILD_DIR}/temp.dmg" -readwrite -noverify -noau
 MOUNT_EXIT_CODE=$?
 
 if [[ $MOUNT_EXIT_CODE -eq 0 ]]; then
-    MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep -E '^/dev/' | sed 1q | awk '{print $3}')
+    # Parse mount point from hdiutil output, handling spaces in volume names
+    MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep '/Volumes/' | tail -1 | sed 's/.*\t\(.*\)/\1/')
     if [[ -n "$MOUNT_POINT" ]]; then
         print_status "DMG mounted successfully at: $MOUNT_POINT"
     else
         print_error "Could not determine mount point from hdiutil output:"
         echo "$MOUNT_OUTPUT"
-        exit 1
+        print_warning "Continuing without DMG creation..."
+        CREATE_DMG=false
     fi
 else
     print_error "Failed to mount temp DMG (exit code: $MOUNT_EXIT_CODE)"
