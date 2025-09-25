@@ -1,153 +1,221 @@
-# ActivityWatch Team macOS Installer ✅ COMPLETED
+# ActivityWatch Team macOS Installer 🍎
 
-## Project Status: ✅ READY FOR DEPLOYMENT
+[![Build Status](https://github.com/BaliLove/activitywatch-macos-installer/actions/workflows/build-macos.yml/badge.svg)](https://github.com/BaliLove/activitywatch-macos-installer/actions)
+[![macOS Support](https://img.shields.io/badge/macOS-12.0+-blue.svg)](https://support.apple.com/macos)
+[![Python](https://img.shields.io/badge/python-3.11+-green.svg)](https://python.org)
 
-**The macOS installer has been successfully built and is ready for team distribution.**
+**Status: ✅ READY FOR PRODUCTION**
 
-### 📦 What's Available
-- **macOS App Bundle**: `ActivityWatch Team Installer.app` 
-- **DMG Installer**: `ActivityWatch-Team-macOS.dmg` for easy distribution
-- **Automated Testing**: Full cloud-based CI/CD pipeline
-- **Source Code**: Complete codebase for future maintenance
+A professional macOS installer that automatically downloads, installs, and configures ActivityWatch with team sync capabilities for seamless productivity tracking across your organization.
 
-### 🚀 Quick Start for Team Members
-1. Download the latest `ActivityWatch-Team-macOS.dmg` from [GitHub Releases](../../releases)
-2. Open the DMG and drag the app to Applications folder
-3. Run the installer and enter your team email when prompted
-4. ActivityWatch will automatically sync every 10 minutes to our BigQuery system
+## 🚀 Quick Start for Team Members
 
-## Original Project Requirements ✅ COMPLETED
+### Option 1: Download Pre-built Installer (Recommended)
+1. Download the latest `ActivityWatch-Team-Installer-macOS-*.dmg` from [GitHub Releases](../../releases)
+2. Double-click the DMG to mount it
+3. Drag the "ActivityWatch Team Installer" app to your Applications folder
+4. Launch the app from Applications
+5. Enter your team email when prompted (e.g., `yourname@bali.love`)
+6. The installer will automatically download and configure ActivityWatch
 
-## Working Windows Reference
-- **Windows Installer**: `ActivityWatch-Standalone-EXE/ActivityWatch-Team-Installer.exe` (3.9MB)
-- **Status**: ✅ Fully operational and tested
+### Option 2: Build from Source
+```bash
+git clone https://github.com/BaliLove/activitywatch-macos-installer.git
+cd activitywatch-macos-installer
+./build_macos.sh
+```
+
+## 🏗️ For Developers & DevOps
+
+### Current Architecture
+- **Main App**: `activitywatch_installer_macos_enhanced.py` - Full-featured installer with GUI/CLI modes
+- **Build Script**: `build_macos.sh` - Creates macOS app bundle and DMG
+- **CI/CD**: `.github/workflows/build-macos.yml` - Automated testing on macOS 12-14
 - **Server**: `https://activitywatch-sync-server-1051608384208.us-central1.run.app`
 
-## Key Requirements
+### Build Process
+The GitHub Actions workflow automatically:
+1. **Builds** the installer on multiple macOS versions
+2. **Tests** app bundle integrity, DMG creation, and installation simulation
+3. **Validates** system requirements, network connectivity, and Gatekeeper compatibility
+4. **Uploads** artifacts for download and deployment
 
-### 1. Core Installation
-- Install ActivityWatch application for macOS
-- Set up sync client that runs every 10 minutes
-- Configure automatic startup on login
+### System Requirements
+- **macOS**: 12.0+ (Monterey through Sonoma)
+- **Python**: 3.11+ (bundled in installer)
+- **Network**: Required for ActivityWatch download and sync
+- **Disk Space**: ~500MB for full installation
 
-### 2. Authentication & Configuration
-- **API Key**: `aw-team-2025-secure-key-v1` (hardcoded)
-- **Server URL**: `https://activitywatch-sync-server-1051608384208.us-central1.run.app`
-- **User Email**: Prompt during installation
-- **Sync Interval**: 10 minutes
+## 🔧 Configuration
 
-### 3. Privacy Settings
-- Encrypt window titles containing sensitive keywords
-- Filter out private browsing sessions
-- Exclude password managers and banking apps
-- Work hours tracking optional
-
-## Technical Details
-
-### Server API
-- **Endpoint**: `POST /api/sync`
-- **Headers**: `X-API-Key: aw-team-2025-secure-key-v1`
-- **Content-Type**: `application/json`
-- **Payload**: See `sync_data_format.json` for structure
-
-### Data Structure
-Events sent to server must include:
+### API Integration
 ```json
 {
-  "user_email": "user@bali.love",
-  "events": [
-    {
-      "event_id": "unique_id",
-      "timestamp": "2025-09-23T06:00:00Z",
-      "duration": 300.0,
-      "application": "Safari",
-      "window_title": "Document Title",
-      "hostname": "MacBook-Pro",
-      "metadata": {
-        "bucket": "aw-watcher-window_MacBook-Pro",
-        "original_id": "event_123",
-        "afk_status": "not-afk",
-        "url": "https://example.com",
-        "tab_count": 3,
-        "audible": false,
-        "incognito": false
-      }
-    }
-  ]
+  "api_key": "aw-team-2025-secure-key-v1",
+  "server_url": "https://activitywatch-sync-server-1051608384208.us-central1.run.app",
+  "sync_interval": 600,
+  "endpoint": "/api/sync"
 }
 ```
 
-## ✅ Completed Deliverables
-1. **macOS App Bundle** (`.app` file) - ✅ Built and tested
-2. **DMG Installer** for easy distribution - ✅ Available in GitHub Releases
-3. **Installation Instructions** for team members - ✅ See INSTALLATION_GUIDE.md
-4. **Source Code** for future maintenance - ✅ Complete codebase with documentation
-5. **Automated Testing** - ✅ Cloud-based CI/CD pipeline validates every build
-6. **macOS Compatibility** - ✅ Supports macOS 10.15+ (Catalina through Sonoma)
+### Privacy Settings
+The installer automatically configures privacy protection:
+- Encrypts sensitive window titles (passwords, banking, etc.)
+- Filters private browsing sessions
+- Excludes password managers and financial apps
+- Configurable work hours tracking
 
-## ✅ Testing Status
-- ✅ **Automated Testing**: Cloud-based CI/CD validates every build
-- ✅ **App Bundle Integrity**: Structure and content verification
-- ✅ **DMG Validation**: Mounting and installation simulation
-- ✅ **System Compatibility**: macOS 10.15+ support verified
-- ✅ **Network Connectivity**: Server API endpoint validation
-- ✅ **Installation Workflow**: Email validation and cleanup tested
+## 📁 Repository Structure
 
-### Manual Testing (Optional)
-For additional verification, see `CLOUD_TESTING_GUIDE.md` for options to test on real macOS systems using:
-- MacStadium or MacinCloud (cloud Mac rental)
-- AWS EC2 Mac instances
-- GitHub Codespaces with macOS runners
+```
+├── .github/workflows/          # CI/CD automation
+│   └── build-macos.yml        # Main build workflow
+├── docs/                      # Documentation
+├── tests/                     # Playwright UI tests
+├── activitywatch_installer_macos_enhanced.py  # Main installer
+├── build_macos.sh            # Build script
+├── config_template.json      # Configuration template  
+├── privacy_settings.json     # Privacy configuration
+└── requirements.txt          # Python dependencies
+```
 
-## Budget & Timeline
-- **Budget**: [To be discussed]
-- **Timeline**: [To be agreed]
-- **Milestones**: Alpha version → Beta testing → Final release
+## 🧪 Testing & Quality Assurance
 
-## Support During Development
-- Server access and credentials provided
-- Technical support for API integration
-- BigQuery schema documentation available
-- Testing environment access
+### Automated Testing (GitHub Actions)
+Every commit is automatically tested on:
+- ✅ **macOS 12** (Monterey)
+- ✅ **macOS 13** (Ventura) 
+- ✅ **macOS 14** (Sonoma)
 
-## 📋 Project Files
-### 👨‍💻 Source Code
-- `src/main.py` - Main installer application
-- `src/activity_installer.py` - Core installation logic
-- `src/sync_client.py` - ActivityWatch sync functionality
-- `src/build.py` - Build script for creating app bundle
-- `src/utils.py` - Utility functions
+Tests include:
+- App bundle structure validation
+- DMG integrity and mounting
+- Installation workflow simulation
+- System compatibility checks
+- Network connectivity validation
+- Gatekeeper/quarantine testing
 
-### ⚙️ Configuration
-- `config/config_template.json` - Configuration structure
-- `config/sync_data_format.json` - API payload format
-- `config/privacy_settings.json` - Privacy configuration
-- `src/app_config.py` - Application configuration
+### Manual Testing
+For additional validation, artifacts can be downloaded and tested on physical Macs:
 
-### 📝 Documentation
-- `INSTALLATION_GUIDE.md` - End-user installation instructions
-- `DEVELOPMENT.md` - Developer setup and build instructions
-- `CLOUD_TESTING_GUIDE.md` - Cloud macOS testing options
-- `TESTING_GUIDE.md` - Testing procedures
+```bash
+# Download latest build artifacts
+gh run download --name activitywatch-macos-dmg-unsigned-latest
 
-### 🚀 CI/CD
-- `.github/workflows/build-macos.yml` - Automated build and testing
-- Build artifacts automatically available in GitHub Releases
+# Test on macOS device
+open ActivityWatch-Team-Installer-macOS-*.dmg
+```
 
-## 📦 Deployment Instructions
+## 🚀 Deployment & Release Process
 
-### For Team Distribution
-1. **Download**: Get the latest DMG from [GitHub Releases](../../releases)
-2. **Distribute**: Share the DMG file with team members
-3. **Install**: Team members double-click DMG and drag app to Applications
-4. **Verify**: Check BigQuery for incoming data after installation
+### For Operations Team
+1. **Monitor**: Check [GitHub Actions](../../actions) for build status
+2. **Download**: Get artifacts from successful builds
+3. **Distribute**: Share DMG files with team members via your preferred method
+4. **Verify**: Check server logs for new device connections
 
-### For Developers
-1. **Build**: Run `python src/build.py` to create new installer
-2. **Test**: GitHub Actions automatically tests every commit
-3. **Release**: Tag a release to trigger automatic DMG creation
-4. **Deploy**: Download artifacts from GitHub Actions or Releases
+### Creating New Releases
+```bash
+# Tag a release to trigger automatic build
+git tag v1.0.0
+git push origin v1.0.0
+
+# Or trigger manual build with options
+gh workflow run build-macos.yml \
+  --field enable_ui_tests=true \
+  --field enable_gatekeeper_tests=true \
+  --field target_macos_version=14
+```
+
+## 📊 Data & Monitoring
+
+### Server Integration
+- **Endpoint**: `POST /api/sync`
+- **Authentication**: `X-API-Key: aw-team-2025-secure-key-v1`
+- **Data Format**: JSON with user email, events, and metadata
+- **Sync Frequency**: Every 10 minutes
+- **Storage**: BigQuery for analytics
+
+### Monitoring Checklist
+- [ ] Server health at endpoint URL
+- [ ] BigQuery data ingestion
+- [ ] Client sync frequency (10 minutes)
+- [ ] Privacy setting compliance
+- [ ] macOS compatibility updates
+
+## 🔒 Security & Privacy
+
+### Data Protection
+- Window titles encrypted using configurable keyword filtering
+- Private browsing sessions excluded automatically
+- Password managers and banking apps filtered
+- Local data encrypted at rest
+- Secure API key transmission
+
+### Compliance Features
+- User consent during installation
+- Opt-out capabilities built-in
+- Data retention policies configurable
+- Audit trail for all sync operations
+
+## 🛠️ Maintenance & Support
+
+### Common Issues
+1. **"App can't be opened"** → Right-click app, select "Open", confirm security dialog
+2. **Sync not working** → Check network connection and server status
+3. **High CPU usage** → Verify ActivityWatch isn't conflicting with other apps
+4. **Missing data** → Check privacy settings aren't over-filtering
+
+### Server Maintenance
+- Monitor endpoint: `https://activitywatch-sync-server-1051608384208.us-central1.run.app/health`
+- API key rotation: Update `config_template.json` and rebuild
+- BigQuery schema updates: Coordinate with data team
+
+### Updates & Patches
+1. Update `activitywatch_installer_macos_enhanced.py` with changes
+2. Commit changes to trigger automatic testing
+3. Review GitHub Actions results
+4. Tag release when ready for distribution
+5. Download and distribute new DMG files
+
+## 📝 Development Notes
+
+### Key Dependencies
+- **PyInstaller**: Creates standalone executable
+- **requests**: HTTP client for server communication
+- **certifi**: SSL certificate validation
+- **tkinter**: GUI interface (included with Python)
+
+### Build Environment
+- Requires macOS for building (GitHub Actions provides this)
+- Python 3.11+ with pip package management
+- Xcode Command Line Tools for app bundle creation
+- DMG creation uses built-in macOS tools
+
+### Troubleshooting Build Issues
+```bash
+# Local development setup
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Test installer locally
+python3 activitywatch_installer_macos_enhanced.py --terminal
+
+# Build locally (requires macOS)
+./build_macos.sh
+```
+
+## 📞 Support & Contact
+
+- **Repository Issues**: Use GitHub Issues for bugs and feature requests
+- **CI/CD Problems**: Check GitHub Actions logs and status
+- **Server Issues**: Contact infrastructure team
+- **User Support**: Refer to installation guide and FAQ
 
 ---
-**Status**: ✅ Project completed and ready for production deployment.
-**Last Updated**: January 2025
+
+**Last Updated**: January 2025  
+**Maintainer**: BaliLove Team  
+**License**: Internal Use  
+**Build System**: GitHub Actions on macOS runners
