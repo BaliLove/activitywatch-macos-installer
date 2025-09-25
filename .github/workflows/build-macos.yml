@@ -181,13 +181,10 @@ jobs:
       run: |
         echo "🧪 Testing installer functionality..."
         
-        # Test terminal mode (dry run)
-        python3 activitywatch_installer_macos_enhanced.py --terminal &
-        INSTALLER_PID=$!
-        
-        # Send test email and quit after 3 seconds
-        sleep 1
-        echo -e "test@bali.love\nn" | timeout 3 python3 activitywatch_installer_macos_enhanced.py --terminal || true
+        # Test terminal mode (dry run) - provide input via echo
+        echo -e "test@bali.love\nn\n" | python3 activitywatch_installer_macos_enhanced.py --terminal || {
+          echo "ℹ️ Terminal mode test completed (may have timed out, which is expected)"
+        }
         
         echo "✅ Terminal mode test completed"
         
@@ -507,26 +504,49 @@ jobs:
         echo "Architecture: $(uname -m)" >> dist/BUILD_INFO.txt
         echo "macOS Version: $(sw_vers -productVersion)" >> dist/BUILD_INFO.txt
         echo "Python Version: $(python3 --version)" >> dist/BUILD_INFO.txt
-        echo "PyInstaller Version: $(pip show PyInstaller | grep Version)" >> dist/BUILD_INFO.txt
+        echo "PyInstaller Version: $(pip show PyInstaller | grep Version || echo 'Version: unknown')" >> dist/BUILD_INFO.txt
         echo "Signed: false" >> dist/BUILD_INFO.txt
         echo "" >> dist/BUILD_INFO.txt
         
-        APP_SIZE=$(du -h 'dist/ActivityWatch Team Installer.app' | cut -f1)
-        echo "App Bundle Size: $APP_SIZE" >> dist/BUILD_INFO.txt
-        echo "app-size=$APP_SIZE" >> $GITHUB_OUTPUT
+        # Use more robust path handling for app size
+        if [ -d "dist/ActivityWatch Team Installer.app" ]; then
+          APP_SIZE=$(du -sh "dist/ActivityWatch Team Installer.app" | cut -f1)
+          echo "App Bundle Size: $APP_SIZE" >> dist/BUILD_INFO.txt
+          echo "app-size=$APP_SIZE" >> $GITHUB_OUTPUT
+        else
+          echo "App Bundle Size: Not found" >> dist/BUILD_INFO.txt
+          echo "app-size=unknown" >> $GITHUB_OUTPUT
+        fi
         
+        # Check for DMG files
         if ls dist/ActivityWatch-Team-Installer-macOS-*.dmg >/dev/null 2>&1; then
           DMG_FILE=$(ls dist/ActivityWatch-Team-Installer-macOS-*.dmg | head -1)
           DMG_NAME=$(basename "$DMG_FILE")
-          echo "DMG Size: $(du -h "$DMG_FILE" | cut -f1)" >> dist/BUILD_INFO.txt
+          DMG_SIZE=$(du -sh "$DMG_FILE" | cut -f1)
+          echo "DMG Size: $DMG_SIZE" >> dist/BUILD_INFO.txt
           echo "DMG Filename: $DMG_NAME" >> dist/BUILD_INFO.txt
           echo "dmg-name=$DMG_NAME" >> $GITHUB_OUTPUT
+        else
+          echo "DMG: Not created" >> dist/BUILD_INFO.txt
         fi
         
         echo "" >> dist/BUILD_INFO.txt
         echo "File Checksums:" >> dist/BUILD_INFO.txt
         echo "===============" >> dist/BUILD_INFO.txt
-        (cd dist && find . -name "*.app" -o -name "*.dmg" -print0 | xargs -0 shasum -a 256) >> dist/BUILD_INFO.txt
+        
+        # Generate checksums more safely
+        cd dist
+        if [ -d "ActivityWatch Team Installer.app" ]; then
+          echo "Calculating app bundle checksum..." >> BUILD_INFO.txt
+          tar -cf - "ActivityWatch Team Installer.app" | shasum -a 256 | sed 's/-$/ActivityWatch Team Installer.app/' >> BUILD_INFO.txt
+        fi
+        
+        for dmg in *.dmg; do
+          if [ -f "$dmg" ]; then
+            shasum -a 256 "$dmg" >> BUILD_INFO.txt
+          fi
+        done
+        cd ..
         
         cat dist/BUILD_INFO.txt
     
