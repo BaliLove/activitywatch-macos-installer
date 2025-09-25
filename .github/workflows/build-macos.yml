@@ -708,13 +708,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ 
-          (github.event_name == 'schedule' || inputs.macos_version == 'all') && fromJSON('["macos-12", "macos-13", "macos-14"]') ||
-          inputs.macos_version == 'macos-12' && fromJSON('["macos-12"]') ||
-          inputs.macos_version == 'macos-13' && fromJSON('["macos-13"]') ||
-          inputs.macos_version == 'macos-14' && fromJSON('["macos-14"]') ||
-          fromJSON('["macos-12", "macos-13", "macos-14"]')
-        }}
+        os: ${{ (github.event_name == 'schedule' || inputs.macos_version == 'all') && fromJSON('["macos-12", "macos-13", "macos-14"]') || inputs.macos_version == 'macos-12' && fromJSON('["macos-12"]') || inputs.macos_version == 'macos-13' && fromJSON('["macos-13"]') || inputs.macos_version == 'macos-14' && fromJSON('["macos-14"]') || fromJSON('["macos-12", "macos-13", "macos-14"]') }}
         variant: [unsigned]
         include:
           # Add signed variant if signing was requested
