@@ -1,0 +1,28 @@
+{
+  "name": "activitywatch-macos-installer-tests",
+  "version": "1.0.0",
+  "description": "Playwright UI tests for ActivityWatch macOS installer",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:gui": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "test:install": "npx playwright install --with-deps",
+    "test:installer": "playwright test tests/installer_gui.spec.ts",
+    "test:cli": "playwright test tests/installer_cli.spec.ts",
+    "test:gatekeeper": "playwright test tests/gatekeeper_scenarios.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "playwright",
+    "macos",
+    "installer",
+    "ui-testing",
+    "automation"
+  ]
+}

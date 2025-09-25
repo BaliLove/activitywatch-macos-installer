@@ -18,6 +18,42 @@ on:
         required: false
         default: false
         type: boolean
+      run_ui_tests:
+        description: 'Run Playwright UI tests'
+        required: false
+        default: true
+        type: boolean
+      dmg_url:
+        description: 'External DMG URL to test (optional)'
+        required: false
+        type: string
+      test_gatekeeper:
+        description: 'Test with Gatekeeper scenarios'
+        required: false
+        default: true
+        type: boolean
+      macos_version:
+        description: 'Specific macOS version to test (macos-12, macos-13, macos-14)'
+        required: false
+        type: choice
+        options:
+        - 'all'
+        - 'macos-12'
+        - 'macos-13'
+        - 'macos-14'
+        default: 'all'
+      timeout_minutes:
+        description: 'Test timeout in minutes (default: 30)'
+        required: false
+        type: number
+        default: 30
+      detailed_diagnostics:
+        description: 'Enable detailed system diagnostics on failures'
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    - cron: '0 3 * * *'  # Nightly run at 3 AM UTC
 
 env:
   APP_NAME: "ActivityWatch Team Installer"
@@ -25,9 +61,13 @@ env:
   VERSION: "1.0.0"
 
 jobs:
-  build-macos:
-    name: Build macOS Installer
+  # Build unsigned version for testing
+  build-macos-unsigned:
+    name: Build macOS Installer (Unsigned)
     runs-on: macos-latest
+    outputs:
+      dmg-name: ${{ steps.build-info.outputs.dmg-name }}
+      app-size: ${{ steps.build-info.outputs.app-size }}
     
     steps:
     - name: Checkout code
@@ -457,6 +497,7 @@ jobs:
         echo "📝 Summary: App bundle is ready for real-world deployment"
     
     - name: Generate build artifacts info
+      id: build-info
       run: |
         echo "📊 Build Information" > dist/BUILD_INFO.txt
         echo "===================" >> dist/BUILD_INFO.txt
@@ -467,13 +508,19 @@ jobs:
         echo "macOS Version: $(sw_vers -productVersion)" >> dist/BUILD_INFO.txt
         echo "Python Version: $(python3 --version)" >> dist/BUILD_INFO.txt
         echo "PyInstaller Version: $(pip show PyInstaller | grep Version)" >> dist/BUILD_INFO.txt
+        echo "Signed: false" >> dist/BUILD_INFO.txt
         echo "" >> dist/BUILD_INFO.txt
-        echo "App Bundle Size: $(du -h 'dist/ActivityWatch Team Installer.app' | cut -f1)" >> dist/BUILD_INFO.txt
+        
+        APP_SIZE=$(du -h 'dist/ActivityWatch Team Installer.app' | cut -f1)
+        echo "App Bundle Size: $APP_SIZE" >> dist/BUILD_INFO.txt
+        echo "app-size=$APP_SIZE" >> $GITHUB_OUTPUT
         
         if ls dist/ActivityWatch-Team-Installer-macOS-*.dmg >/dev/null 2>&1; then
           DMG_FILE=$(ls dist/ActivityWatch-Team-Installer-macOS-*.dmg | head -1)
+          DMG_NAME=$(basename "$DMG_FILE")
           echo "DMG Size: $(du -h "$DMG_FILE" | cut -f1)" >> dist/BUILD_INFO.txt
-          echo "DMG Filename: $(basename "$DMG_FILE")" >> dist/BUILD_INFO.txt
+          echo "DMG Filename: $DMG_NAME" >> dist/BUILD_INFO.txt
+          echo "dmg-name=$DMG_NAME" >> $GITHUB_OUTPUT
         fi
         
         echo "" >> dist/BUILD_INFO.txt
@@ -483,24 +530,469 @@ jobs:
         
         cat dist/BUILD_INFO.txt
     
-    - name: Upload app bundle artifact
+    - name: Upload unsigned app bundle
       uses: actions/upload-artifact@v4
       with:
-        name: activitywatch-macos-app-${{ github.sha }}
+        name: activitywatch-macos-app-unsigned-${{ github.sha }}
         path: |
           dist/ActivityWatch Team Installer.app/
           dist/entitlements.plist
           dist/BUILD_INFO.txt
         retention-days: 30
     
-    - name: Upload DMG artifact
+    - name: Upload unsigned DMG
       uses: actions/upload-artifact@v4
       with:
-        name: activitywatch-macos-dmg-${{ github.sha }}
+        name: activitywatch-macos-dmg-unsigned-${{ github.sha }}
         path: |
           dist/*.dmg
           dist/BUILD_INFO.txt
         retention-days: 30
+
+  # Build signed version (when requested)
+  build-macos-signed:
+    name: Build macOS Installer (Signed)
+    runs-on: macos-latest
+    if: github.event.inputs.sign_and_notarize == 'true'
+    outputs:
+      dmg-name: ${{ steps.build-info-signed.outputs.dmg-name }}
+      app-size: ${{ steps.build-info-signed.outputs.app-size }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests certifi PyInstaller
+        
+    - name: Set executable permissions
+      run: chmod +x build_macos.sh
+      
+    - name: Build unsigned app first
+      run: ./build_macos.sh
+      
+    - name: Import certificates
+      run: |
+        # Create temporary keychain
+        security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+        security set-keychain-settings -t 3600 -u build.keychain
+        
+        # Import certificate
+        echo "${{ secrets.APPLE_CERTIFICATE_P12 }}" | base64 --decode > certificate.p12
+        security import certificate.p12 -k build.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+        
+        rm certificate.p12
+      env:
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+    
+    - name: Sign and notarize
+      run: |
+        echo "🔐 Code signing and notarizing..."
+        
+        # Get Developer ID
+        DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed -n 's/.*"\(.*\)".*/\1/p')
+        echo "Using Developer ID: $DEVELOPER_ID"
+        
+        # Sign the app bundle
+        codesign --deep --force --verify --verbose --sign "$DEVELOPER_ID" \
+                 --options runtime \
+                 --entitlements "dist/entitlements.plist" \
+                 "dist/ActivityWatch Team Installer.app"
+        
+        # Verify signing
+        codesign --verify --deep --strict --verbose=2 "dist/ActivityWatch Team Installer.app"
+        spctl --assess -vvv --type execute "dist/ActivityWatch Team Installer.app"
+        
+        # Create signed DMG
+        rm -f "dist/ActivityWatch-Team-Installer-macOS-"*.dmg
+        ./build_macos.sh
+        
+        # Sign the DMG
+        DMG_FILE=$(find dist -name "ActivityWatch-Team-Installer-macOS-*.dmg" | head -1)
+        codesign --sign "$DEVELOPER_ID" "$DMG_FILE"
+        
+        # Notarize
+        echo "📤 Submitting for notarization..."
+        xcrun notarytool submit "$DMG_FILE" \
+          --apple-id "${{ secrets.APPLE_ID }}" \
+          --password "${{ secrets.APP_PASSWORD }}" \
+          --team-id "${{ secrets.TEAM_ID }}" \
+          --wait
+        
+        # Staple notarization
+        xcrun stapler staple "$DMG_FILE"
+        
+        # Verify notarization
+        xcrun stapler validate "$DMG_FILE"
+        spctl --assess -vvv --type open --context context:primary-signature "$DMG_FILE"
+        
+        echo "✅ Successfully signed and notarized"
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+    
+    - name: Generate signed build info
+      id: build-info-signed
+      run: |
+        echo "📊 Build Information (Signed)" > dist/BUILD_INFO_SIGNED.txt
+        echo "========================" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Build Date: $(date)" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Commit: ${{ github.sha }}" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Branch: ${{ github.ref_name }}" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Architecture: $(uname -m)" >> dist/BUILD_INFO_SIGNED.txt
+        echo "macOS Version: $(sw_vers -productVersion)" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Signed: true" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Notarized: true" >> dist/BUILD_INFO_SIGNED.txt
+        echo "" >> dist/BUILD_INFO_SIGNED.txt
+        
+        APP_SIZE=$(du -h 'dist/ActivityWatch Team Installer.app' | cut -f1)
+        echo "App Bundle Size: $APP_SIZE" >> dist/BUILD_INFO_SIGNED.txt
+        echo "app-size=$APP_SIZE" >> $GITHUB_OUTPUT
+        
+        if ls dist/ActivityWatch-Team-Installer-macOS-*.dmg >/dev/null 2>&1; then
+          DMG_FILE=$(ls dist/ActivityWatch-Team-Installer-macOS-*.dmg | head -1)
+          DMG_NAME=$(basename "$DMG_FILE")
+          echo "DMG Size: $(du -h "$DMG_FILE" | cut -f1)" >> dist/BUILD_INFO_SIGNED.txt
+          echo "DMG Filename: $DMG_NAME" >> dist/BUILD_INFO_SIGNED.txt
+          echo "dmg-name=$DMG_NAME" >> $GITHUB_OUTPUT
+        fi
+        
+        # Add signing verification info
+        echo "" >> dist/BUILD_INFO_SIGNED.txt
+        echo "Code Signing Info:" >> dist/BUILD_INFO_SIGNED.txt
+        echo "==================" >> dist/BUILD_INFO_SIGNED.txt
+        codesign -dv "dist/ActivityWatch Team Installer.app" 2>&1 >> dist/BUILD_INFO_SIGNED.txt
+        
+        cat dist/BUILD_INFO_SIGNED.txt
+    
+    - name: Upload signed app bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: activitywatch-macos-app-signed-${{ github.sha }}
+        path: |
+          dist/ActivityWatch Team Installer.app/
+          dist/entitlements.plist
+          dist/BUILD_INFO_SIGNED.txt
+        retention-days: 30
+    
+    - name: Upload signed DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: activitywatch-macos-dmg-signed-${{ github.sha }}
+        path: |
+          dist/*.dmg
+          dist/BUILD_INFO_SIGNED.txt
+        retention-days: 30
+
+  # UI Testing Matrix
+  ui-tests:
+    name: UI Tests (${{ matrix.os }}, ${{ matrix.variant }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ inputs.timeout_minutes || 30 }}
+    needs: [build-macos-unsigned]
+    if: github.event.inputs.run_ui_tests != 'false' && (github.event_name != 'schedule' || github.ref == 'refs/heads/main')
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ 
+          (github.event_name == 'schedule' || inputs.macos_version == 'all') && fromJSON('["macos-12", "macos-13", "macos-14"]') ||
+          inputs.macos_version == 'macos-12' && fromJSON('["macos-12"]') ||
+          inputs.macos_version == 'macos-13' && fromJSON('["macos-13"]') ||
+          inputs.macos_version == 'macos-14' && fromJSON('["macos-14"]') ||
+          fromJSON('["macos-12", "macos-13", "macos-14"]')
+        }}
+        variant: [unsigned]
+        include:
+          # Add signed variant if signing was requested
+          - os: macos-14
+            variant: signed
+            needs: [build-macos-unsigned, build-macos-signed]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js for Playwright
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install Playwright and dependencies
+      run: |
+        npm init -y
+        npm install -D @playwright/test@latest
+        npx playwright install --with-deps chromium
+        
+        # Install additional macOS testing tools
+        brew install jq
+        
+    - name: Download test artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: activitywatch-macos-dmg-${{ matrix.variant }}-${{ github.sha }}
+        path: ./test-artifacts/
+        
+    - name: Setup test environment
+      run: |
+        echo "Setting up UI test environment..."
+        
+        # Create test directories
+        mkdir -p tests/screenshots
+        mkdir -p tests/videos  
+        mkdir -p tests/traces
+        mkdir -p tests/logs
+        
+        # Find the DMG file
+        DMG_FILE=$(find test-artifacts -name "*.dmg" | head -1)
+        if [[ -z "$DMG_FILE" ]]; then
+          echo "❌ No DMG file found in artifacts"
+          exit 1
+        fi
+        
+        echo "Found DMG: $DMG_FILE"
+        echo "DMG_PATH=$DMG_FILE" >> $GITHUB_ENV
+        
+        # System info for debugging
+        echo "macOS Version: $(sw_vers -productVersion)"
+        echo "Architecture: $(uname -m)"
+        echo "Available RAM: $(sysctl hw.memsize | awk '{print $2/1024/1024/1024 " GB"}' | bc -l)"
+        echo "Available Disk: $(df -h / | awk 'NR==2 {print $4}')"
+        
+    - name: Run Playwright UI tests
+      env:
+        PLAYWRIGHT_HTML_REPORT: tests/playwright-report
+        PLAYWRIGHT_VIDEO_DIR: tests/videos
+        PLAYWRIGHT_TRACE_DIR: tests/traces
+        PLAYWRIGHT_SCREENSHOT_MODE: only-on-failure
+        DMG_PATH: ${{ env.DMG_PATH }}
+      run: |
+        echo "🎭 Starting Playwright UI tests..."
+        echo "DMG Path: $DMG_PATH"
+        echo "Test Variant: ${{ matrix.variant }}"
+        echo "macOS Version: $(sw_vers -productVersion)"
+        
+        # Basic DMG validation first
+        echo "📋 Validating DMG..."
+        hdiutil verify "$DMG_PATH" || {
+          echo "❌ DMG validation failed"
+          exit 1
+        }
+        echo "✅ DMG validation passed"
+        
+        # Install TypeScript if not available
+        if ! command -v tsc &> /dev/null; then
+          npm install -g typescript
+        fi
+        
+        # Setup timeout and hang detection
+        TEST_TIMEOUT_SECONDS=$(((${{ inputs.timeout_minutes || 30 }} - 5) * 60))  # Leave 5 min buffer for cleanup
+        echo "⏰ Test timeout set to $TEST_TIMEOUT_SECONDS seconds"
+        
+        # Function to run tests with timeout and hang detection
+        run_test_with_timeout() {
+          local test_name="$1"
+          local test_file="$2"
+          local log_file="tests/logs/${test_name,,}-execution.log"
+          
+          echo "🎯 Running $test_name..."
+          
+          # Start test in background with timeout
+          timeout "${TEST_TIMEOUT_SECONDS}s" npx playwright test "$test_file" \    
+            --reporter=json:tests/logs/${test_name,,}-results.json \    
+            --reporter=line > "$log_file" 2>&1 &
+          
+          local test_pid=$!
+          local start_time=$(date +%s)
+          
+          # Monitor test execution
+          while kill -0 $test_pid 2>/dev/null; do
+            sleep 5
+            current_time=$(date +%s)
+            elapsed=$((current_time - start_time))
+            
+            # Check for hang (no log activity for 300 seconds)
+            if [[ -f "$log_file" ]]; then
+              log_age=$(stat -f "%m" "$log_file" 2>/dev/null || echo "$current_time")
+              if (( current_time - log_age > 300 )); then
+                echo "⚠️ Test appears hung (no activity for 5 minutes)"
+                
+                # Capture system state for diagnostics
+                if [[ "${{ inputs.detailed_diagnostics }}" == "true" ]]; then
+                  echo "📊 Capturing hang diagnostics..."
+                  {
+                    echo "=== HANG DIAGNOSTIC REPORT ==="
+                    echo "Test: $test_name"
+                    echo "PID: $test_pid"
+                    echo "Elapsed time: ${elapsed}s"
+                    echo "Log last modified: $(date -r "$log_file" 2>/dev/null || echo 'unknown')"
+                    echo ""
+                    echo "=== ACTIVE PROCESSES ==="
+                    ps aux | head -20
+                    echo ""
+                    echo "=== SYSTEM RESOURCES ==="
+                    top -l 1 | head -20
+                    echo ""
+                    echo "=== DISK SPACE ==="
+                    df -h
+                    echo ""
+                    echo "=== NETWORK CONNECTIONS ==="
+                    netstat -an | head -20
+                    echo ""
+                    echo "=== RECENT CONSOLE LOGS ==="
+                    log show --predicate 'eventMessage contains "ActivityWatch"' --last 5m --style compact 2>/dev/null || echo "Console logs not available"
+                    echo ""
+                  } > "tests/logs/hang-diagnostic-${test_name,,}-$(date +%s).log"
+                fi
+                
+                # Kill the hung test
+                kill -TERM $test_pid 2>/dev/null
+                sleep 5
+                kill -KILL $test_pid 2>/dev/null
+                echo "❌ $test_name terminated due to hang"
+                return 1
+              fi
+            fi
+            
+            # Progress indicator
+            if (( elapsed % 60 == 0 )) && (( elapsed > 0 )); then
+              echo "⏳ $test_name running for ${elapsed}s..."
+            fi
+          done
+          
+          # Wait for test to complete and get exit code
+          wait $test_pid
+          local exit_code=$?
+          
+          local end_time=$(date +%s)
+          local total_elapsed=$((end_time - start_time))
+          
+          if [[ $exit_code -eq 124 ]]; then
+            echo "⏰ $test_name timed out after ${total_elapsed}s"
+            return 124
+          elif [[ $exit_code -eq 0 ]]; then
+            echo "✅ $test_name completed successfully in ${total_elapsed}s"
+            return 0
+          else
+            echo "❌ $test_name failed with exit code $exit_code after ${total_elapsed}s"
+            return $exit_code
+          fi
+        }
+        
+        # Run tests with enhanced monitoring
+        echo "🎭 Running UI tests with timeout and hang detection..."
+        
+        # Run GUI tests
+        echo "1. Running GUI installation tests..."
+        run_test_with_timeout "GUI-Tests" "tests/installer_gui.spec.ts" || true
+        
+        # Run CLI tests  
+        echo "2. Running CLI installation tests..."
+        run_test_with_timeout "CLI-Tests" "tests/installer_cli.spec.ts" || true
+        
+        # Run Gatekeeper and edge case tests
+        echo "3. Running Gatekeeper and edge case tests..."
+        run_test_with_timeout "Gatekeeper-Tests" "tests/gatekeeper_scenarios.spec.ts" || true
+        
+        # Generate comprehensive test report
+        echo "📊 Generating comprehensive test report..."
+        
+        # Create test summary for GitHub
+        SUMMARY_FILE="tests/logs/test-summary.md"
+        echo "# 🎭 ActivityWatch macOS Installer Test Results" > "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "**Test Environment:**" >> "$SUMMARY_FILE"
+        echo "- macOS Version: $(sw_vers -productVersion)" >> "$SUMMARY_FILE"
+        echo "- Architecture: $(uname -m)" >> "$SUMMARY_FILE"
+        echo "- Test Variant: ${{ matrix.variant }}" >> "$SUMMARY_FILE"
+        echo "- DMG Path: $DMG_PATH" >> "$SUMMARY_FILE"
+        echo "- Timestamp: $(date -u)" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        
+        # Add test results summary
+        echo "## Test Results Summary" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        
+        # Count test results
+        if [[ -f "tests/playwright-report/results.json" ]]; then
+          # Extract test counts from Playwright JSON report
+          TOTAL_TESTS=$(jq '.suites[].suites[].specs | length' tests/playwright-report/results.json 2>/dev/null | paste -sd+ | bc 2>/dev/null || echo "unknown")
+          PASSED_TESTS=$(jq '[.suites[].suites[].specs[].tests[] | select(.status == "passed")] | length' tests/playwright-report/results.json 2>/dev/null || echo "unknown")
+          FAILED_TESTS=$(jq '[.suites[].suites[].specs[].tests[] | select(.status == "failed")] | length' tests/playwright-report/results.json 2>/dev/null || echo "unknown")
+          
+          echo "- Total Tests: $TOTAL_TESTS" >> "$SUMMARY_FILE"
+          echo "- Passed: $PASSED_TESTS ✅" >> "$SUMMARY_FILE"
+          echo "- Failed: $FAILED_TESTS ❌" >> "$SUMMARY_FILE"
+        else
+          echo "- Test results not available (check logs)" >> "$SUMMARY_FILE"
+        fi
+        
+        echo "" >> "$SUMMARY_FILE"
+        
+        # Add artifacts section
+        echo "## 📎 Artifacts Available" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "- 🖼️ **Screenshots**: Captured at key test points" >> "$SUMMARY_FILE"
+        echo "- 📹 **Videos**: Full test execution recordings" >> "$SUMMARY_FILE"
+        echo "- 🔍 **Traces**: Detailed Playwright execution traces" >> "$SUMMARY_FILE"
+        echo "- 📄 **Logs**: System, installer, and test logs" >> "$SUMMARY_FILE"
+        echo "- 📊 **HTML Report**: Interactive test report" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        
+        # Add diagnostic information
+        if [[ -f "tests/logs/system-logs-launch-failure.log" ]]; then
+          echo "## ⚠️ Critical Issues Detected" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo "- **Launch Failure**: Possible \"nothing happens\" scenario detected" >> "$SUMMARY_FILE"
+          echo "- Check system logs in artifacts for details" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+        fi
+        
+        # List all available screenshots
+        if [[ -d "tests/screenshots" ]] && [[ "$(ls -A tests/screenshots 2>/dev/null)" ]]; then
+          echo "## 🖼️ Screenshots Captured" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          for screenshot in tests/screenshots/*.png; do
+            if [[ -f "$screenshot" ]]; then
+              basename_screenshot=$(basename "$screenshot" .png)
+              echo "- 🖼️ \`$basename_screenshot\`" >> "$SUMMARY_FILE"
+            fi
+          done
+          echo "" >> "$SUMMARY_FILE"
+        fi
+        
+        # Add the summary to GitHub Step Summary
+        if [[ -n "$GITHUB_STEP_SUMMARY" ]]; then
+          cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
+        echo "✅ UI tests and reporting completed"
+        
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ui-test-results-${{ matrix.os }}-${{ matrix.variant }}-${{ github.sha }}
+        path: |
+          tests/screenshots/
+          tests/videos/
+          tests/traces/
+          tests/logs/
+          tests/playwright-report/
+        retention-days: 14
     
     - name: Create Release (if requested)
       if: ${{ github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/') }}
